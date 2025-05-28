@@ -6,291 +6,9 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import time
 from datetime import datetime
-import json
 
-# Configuração da página - DEVE ser a primeira linha do Streamlit
-st.set_page_config(
-    page_title="LexFácil", 
-    layout="wide", 
-    initial_sidebar_state="collapsed",
-    page_icon="⚖️"
-)
-
-# CSS personalizado para interface moderna
-st.markdown("""
-<style>
-    /* Reset e variáveis */
-    :root {
-        --primary-color: #2E86AB;
-        --secondary-color: #A23B72;
-        --accent-color: #F18F01;
-        --success-color: #06D6A0;
-        --warning-color: #F18F01;
-        --error-color: #F71735;
-        --text-color: #2D3436;
-        --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --card-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-        --glass-bg: rgba(255, 255, 255, 0.25);
-        --border-radius: 16px;
-    }
-    
-    /* Layout principal */
-    .main-container {
-        background: var(--bg-gradient);
-        min-height: 100vh;
-        padding: 0;
-        margin: 0;
-    }
-    
-    /* Header moderno */
-    .modern-header {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        padding: 1.5rem 2rem;
-        border-radius: 0 0 24px 24px;
-        margin-bottom: 2rem;
-        box-shadow: var(--card-shadow);
-    }
-    
-    .header-title {
-        font-size: 2.5rem;
-        font-weight: 700;
-        background: linear-gradient(45deg, #667eea, #764ba2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin: 0;
-    }
-    
-    .header-subtitle {
-        text-align: center;
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 1.1rem;
-        margin-top: 0.5rem;
-    }
-    
-    /* Cards modernos */
-    .glass-card {
-        background: var(--glass-bg);
-        backdrop-filter: blur(16px);
-        border-radius: var(--border-radius);
-        padding: 2rem;
-        box-shadow: var(--card-shadow);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        margin-bottom: 1.5rem;
-    }
-    
-    /* Chat interface */
-    .chat-container {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: var(--card-shadow);
-        max-height: 600px;
-        overflow-y: auto;
-    }
-    
-    /* Personas modernas */
-    .persona-selector {
-        display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
-        margin-bottom: 1.5rem;
-    }
-    
-    .persona-card {
-        background: rgba(255, 255, 255, 0.2);
-        border: 2px solid transparent;
-        border-radius: 12px;
-        padding: 1rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        flex: 1;
-        min-width: 200px;
-        text-align: center;
-    }
-    
-    .persona-card:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: translateY(-2px);
-    }
-    
-    .persona-card.active {
-        border-color: var(--accent-color);
-        background: rgba(241, 143, 1, 0.2);
-    }
-    
-    .persona-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .persona-title {
-        font-weight: 600;
-        color: white;
-        margin-bottom: 0.25rem;
-    }
-    
-    .persona-desc {
-        font-size: 0.9rem;
-        color: rgba(255, 255, 255, 0.8);
-    }
-    
-    /* Upload area moderna */
-    .upload-zone {
-        border: 2px dashed rgba(255, 255, 255, 0.5);
-        border-radius: var(--border-radius);
-        padding: 3rem;
-        text-align: center;
-        background: rgba(255, 255, 255, 0.1);
-        transition: all 0.3s ease;
-        margin-bottom: 2rem;
-    }
-    
-    .upload-zone:hover {
-        border-color: var(--accent-color);
-        background: rgba(255, 255, 255, 0.15);
-    }
-    
-    /* Botões de ação rápida */
-    .quick-actions {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-    
-    .action-button {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        color: white;
-        border: none;
-        padding: 1rem 1.5rem;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-weight: 600;
-        text-align: center;
-    }
-    
-    .action-button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(46, 134, 171, 0.4);
-    }
-    
-    /* Sugestões de perguntas */
-    .suggestions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-    
-    .suggestion-chip {
-        background: rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 25px;
-        padding: 0.75rem 1.5rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-align: center;
-        color: white;
-        font-weight: 500;
-    }
-    
-    .suggestion-chip:hover {
-        background: var(--accent-color);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 15px rgba(241, 143, 1, 0.4);
-    }
-    
-    /* Status indicator */
-    .status-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: var(--success-color);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-    
-    /* Loading spinner moderno */
-    .modern-spinner {
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-top: 3px solid var(--accent-color);
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-        margin: 0 auto;
-    }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    
-    /* Chat messages styling */
-    .chat-message {
-        margin-bottom: 1rem;
-        padding: 1rem;
-        border-radius: 12px;
-        max-width: 80%;
-    }
-    
-    .user-message {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        color: white;
-        margin-left: auto;
-        text-align: right;
-    }
-    
-    .assistant-message {
-        background: rgba(255, 255, 255, 0.9);
-        color: var(--text-color);
-        margin-right: auto;
-    }
-    
-    /* Responsivo */
-    @media (max-width: 768px) {
-        .persona-selector {
-            flex-direction: column;
-        }
-        
-        .quick-actions {
-            grid-template-columns: 1fr;
-        }
-        
-        .suggestions-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-    
-    /* Animações */
-    .fade-in {
-        animation: fadeIn 0.5s ease-in;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* Esconder elementos padrão do Streamlit */
-    .stDeployButton { display: none; }
-    .stDecoration { display: none; }
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-    header { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
-# Configuração da API
-GOOGLE_API_KEY = "AIzaSyAi-EZdS0Jners99DuB_5DkROiK16ghPnM"  # Replace with your actual API key
+# Configuração da API (mantida igual)
+GOOGLE_API_KEY = "AIzaSyAi-EZdS0Jners99DuB_5DkROiK16ghPnM"
 
 if not GOOGLE_API_KEY or GOOGLE_API_KEY == "YOUR_ACTUAL_API_KEY_HERE": 
     st.error("⚠️ ATENÇÃO: A CHAVE API DO GEMINI NÃO FOI DEFINIDA CORRETAMENTE NO CÓDIGO!")
@@ -314,7 +32,7 @@ except Exception as e:
     st.error(f"❌ Falha ao configurar a API do Gemini: {str(e)}")
     st.stop()
 
-# Inicialização do session state
+# Inicialização do session state (mantida igual)
 if 'chat_messages' not in st.session_state:
     st.session_state.chat_messages = []
 if 'texto_lei' not in st.session_state:
@@ -334,7 +52,7 @@ if 'casos_praticos' not in st.session_state:
 if 'prazos_extraidos' not in st.session_state:
     st.session_state.prazos_extraidos = []
 
-# --- Helper Functions ---
+# --- Helper Functions (mantidas iguais) ---
 def extrair_texto_pdf(caminho_pdf):
     texto = ""
     try:
@@ -562,115 +280,194 @@ def busca_semantica(texto, consulta):
     """
     return call_gemini_api(prompt, "Busca Semântica")
 
-# --- Interface Principal ---
+# --- Novo Design da Interface ---
+st.set_page_config(
+    page_title="LexFácil - Seu Assistente Jurídico Inteligente",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/seu-repositorio',
+        'Report a bug': "https://github.com/seu-repositorio/issues",
+        'About': "LexFácil - Transformando juridiquês em linguagem humana com IA"
+    }
+)
 
-# Header moderno
+# CSS Customizado
 st.markdown("""
-<div class="main-container">
-    <div class="modern-header fade-in">
-        <h1 class="header-title">⚖️ LexFácil</h1>
-        <p class="header-subtitle">Seu assistente jurídico inteligente que transforma juridiquês em linguagem humana</p>
-    </div>
+<style>
+    /* Fonte principal */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Cabeçalho moderno */
+    .header {
+        background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Cards de ferramentas */
+    .tool-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease;
+    }
+    
+    .tool-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Botões modernos */
+    .stButton>button {
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-1px);
+    }
+    
+    /* Sidebar estilizada */
+    [data-testid="stSidebar"] {
+        background: #f9fafb !important;
+        border-right: 1px solid #e5e7eb !important;
+    }
+    
+    /* Mensagens do chat */
+    .user-message {
+        background-color: #f0f4ff !important;
+        border-radius: 18px 18px 0 18px !important;
+        padding: 12px 16px !important;
+    }
+    
+    .assistant-message {
+        background-color: #ffffff !important;
+        border-radius: 18px 18px 18px 0 !important;
+        padding: 12px 16px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        border: 1px solid #e5e7eb !important;
+    }
+    
+    /* Input do chat */
+    .stChatInput {
+        border-top: 1px solid #e5e7eb !important;
+        padding-top: 1rem !important;
+    }
+    
+    /* Sugestões de perguntas */
+    .suggestion-chip {
+        display: inline-block;
+        background: #f0f4ff;
+        color: #4f46e5;
+        padding: 8px 12px;
+        border-radius: 20px;
+        margin: 4px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid #e0e7ff;
+    }
+    
+    .suggestion-chip:hover {
+        background: #e0e7ff;
+        transform: translateY(-1px);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Layout Principal
+st.markdown("""
+<div class="header">
+    <h1 style="margin:0; color:white;">LexFácil ⚖️</h1>
+    <p style="margin:0; opacity:0.9;">Seu assistente jurídico inteligente</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Container principal
-with st.container():
-    # Seletor de Persona moderno
+# Sidebar Moderna
+with st.sidebar:
     st.markdown("""
-    <div class="glass-card fade-in">
-        <h3 style="color: white; margin-bottom: 1rem;">👤 Como posso te ajudar hoje?</h3>
-        <div class="persona-selector">
+    <div style="text-align:center; margin-bottom:2rem;">
+        <h3 style="margin-bottom:0.5rem;">📘 LexFácil</h3>
+        <p style="color:#6b7280; font-size:0.9rem;">Transformando leis em linguagem acessível</p>
+    </div>
     """, unsafe_allow_html=True)
     
-    personas = {
-        "👨‍👩‍👧‍👦 Cidadão": {
-            "icon": "👨‍👩‍👧‍👦",
-            "title": "Cidadão",
-            "desc": "Linguagem simples e exemplos do dia a dia"
-        },
-        "👨‍💼 Empresário": {
-            "icon": "👨‍💼", 
-            "title": "Empresário",
-            "desc": "Foco em impactos comerciais e negócios"
-        },
-        "👩‍⚖️ Advogado": {
-            "icon": "👩‍⚖️",
-            "title": "Advogado", 
-            "desc": "Análise técnica e jurídica detalhada"
-        },
-        "🏛️ Servidor Público": {
-            "icon": "🏛️",
-            "title": "Servidor Público",
-            "desc": "Aplicação prática da norma"
+    # Seção de Perfil
+    with st.expander("👤 **Meu Perfil**", expanded=True):
+        personas = {
+            "👨‍👩‍👧‍👦 Cidadão": "Linguagem simples e exemplos do dia a dia",
+            "👨‍💼 Empresário": "Foco em impactos comerciais e negócios", 
+            "👩‍⚖️ Advogado": "Análise técnica e jurídica detalhada",
+            "🏛️ Servidor Público": "Aplicação prática da norma"
         }
-    }
-    
-    # Criar colunas para personas
-    cols = st.columns(4)
-    for i, (key, persona) in enumerate(personas.items()):
-        with cols[i]:
-            active_class = "active" if key == st.session_state.persona_usuario else ""
-            if st.button(
-                f"{persona['icon']}\n{persona['title']}\n{persona['desc']}", 
-                key=f"persona_{i}",
-                use_container_width=True
-            ):
-                if key != st.session_state.persona_usuario:
-                    st.session_state.persona_usuario = key
-                    st.success(f"✅ Perfil alterado para {persona['title']}")
-                    time.sleep(1)
-                    st.rerun()
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
-    
-    # Upload de arquivo com interface moderna
-    if not st.session_state.texto_lei:
-        st.markdown("""
-        <div class="glass-card fade-in">
-            <div class="upload-zone">
-                <h2 style="color: white; margin-bottom: 1rem;">📄 Carregue seu documento jurídico</h2>
-                <p style="color: rgba(255,255,255,0.8); margin-bottom: 2rem;">
-                    Arraste e solte ou clique para selecionar um arquivo PDF
-                </p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
         
+        persona_escolhida = st.radio(
+            "Selecione seu perfil:",
+            options=list(personas.keys()),
+            index=list(personas.keys()).index(st.session_state.persona_usuario),
+            help="Escolha seu perfil para respostas personalizadas",
+            label_visibility="collapsed"
+        )
+        
+        if persona_escolhida != st.session_state.persona_usuario:
+            st.session_state.persona_usuario = persona_escolhida
+            st.success(f"✅ Perfil alterado para {persona_escolhida}")
+            time.sleep(1)
+            st.rerun()
+        
+        st.caption(personas[st.session_state.persona_usuario])
+    
+    # Divisor visual
+    st.markdown("---")
+    
+    # Seção de Documento
+    with st.expander("📄 **Documento Atual**", expanded=True):
         uploaded_file = st.file_uploader(
-            "Escolher arquivo PDF", 
+            "Carregar PDF da lei/norma",
             type=["pdf"],
             label_visibility="collapsed"
         )
         
         if uploaded_file:
             if uploaded_file.name != st.session_state.nome_documento:
-                # Novo arquivo carregado
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_file_path = tmp_file.name
 
-                with st.spinner("🔄 Processando documento..."):
+                with st.spinner("Processando documento..."):
                     texto_extraido = extrair_texto_pdf(tmp_file_path)
                     os.unlink(tmp_file_path)
                     
                     if texto_extraido:
                         st.session_state.texto_lei = texto_extraido
                         st.session_state.nome_documento = uploaded_file.name
-                        st.session_state.chat_messages = []  # Limpa chat anterior
+                        st.session_state.chat_messages = []
                         st.session_state.analise_realizada = False
                         st.session_state.resumo_realizado = False
                         
-                        st.success("✅ Documento carregado com sucesso!")
-                        
-                        # Mensagem de boas-vindas automática
-                        boas_vindas = f"""Perfeito! Acabei de processar o documento **{uploaded_file.name}**. 🎉
+                        boas_vindas = f"""Olá! Acabei de receber o documento **{uploaded_file.name}**. 
 
-Agora posso ajudar você a entender este texto jurídico de forma simples e clara. 
+Agora posso ajudar você a entender este texto jurídico de forma simples e clara. Você pode:
 
-**O que você gostaria de fazer primeiro?**
+🔍 **Me fazer perguntas** sobre qualquer parte da lei  
+📊 **Solicitar análise de legibilidade**  
+📄 **Pedir um resumo simplificado**  
 
-💡 **Dica**: Use os botões de ação rápida abaixo ou me faça perguntas específicas sobre a lei!"""
+**Como posso ajudar você hoje?**"""
                         
                         st.session_state.chat_messages.append({
                             "role": "assistant",
@@ -680,31 +477,281 @@ Agora posso ajudar você a entender este texto jurídico de forma simples e clar
                         st.rerun()
                     else:
                         st.error("❌ Não foi possível extrair texto do PDF")
+        
+        if st.session_state.texto_lei:
+            st.info(f"""
+            **Documento Carregado:**  
+            📑 {st.session_state.nome_documento}  
+            📝 {len(st.session_state.texto_lei):,} caracteres  
+            👤 **Modo:** {st.session_state.persona_usuario.split(' ')[1]}
+            """)
+        else:
+            st.info("Carregue um documento PDF para começar")
     
-    # Interface principal quando documento está carregado
+    # Divisor visual
+    st.markdown("---")
+    
+    # Seção de Ferramentas (apenas se tiver documento)
     if st.session_state.texto_lei:
-        # Status do documento
-        st.markdown(f"""
-        <div class="glass-card fade-in">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h3 style="color: white; margin: 0;">📋 {st.session_state.nome_documento}</h3>
-                    <p style="color: rgba(255,255,255,0.8); margin: 0.5rem 0 0 0;">
-                        {len(st.session_state.texto_lei):,} caracteres • Modo: {st.session_state.persona_usuario}
-                    </p>
-                </div>
-                <div class="status-indicator">
-                    ✅ Ativo
-                </div>
+        with st.expander("🛠️ **Ferramentas Inteligentes**", expanded=True):
+            st.markdown("""
+            <div class="tool-card">
+                <h4 style="margin-top:0;">📊 Análise de Legibilidade</h4>
+                <p style="font-size:0.9rem; color:#6b7280;">Avalie a complexidade do texto jurídico</p>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Ações rápidas
+            """, unsafe_allow_html=True)
+            if st.button("Executar Análise", key="btn_analise", use_container_width=True):
+                if not st.session_state.analise_realizada:
+                    with st.spinner("Analisando..."):
+                        analise = analisar_legibilidade_gemini(st.session_state.texto_lei)
+                        st.session_state.chat_messages.append({
+                            "role": "user",
+                            "content": "Faça uma análise de legibilidade do documento",
+                            "timestamp": datetime.now()
+                        })
+                        st.session_state.chat_messages.append({
+                            "role": "assistant", 
+                            "content": f"## 📊 Análise de Legibilidade\n\n{analise}",
+                            "timestamp": datetime.now()
+                        })
+                        st.session_state.analise_realizada = True
+                        st.rerun()
+                else:
+                    st.info("Análise já realizada!")
+            
+            st.markdown("""
+            <div class="tool-card">
+                <h4 style="margin-top:0;">📄 Resumo Simplificado</h4>
+                <p style="font-size:0.9rem; color:#6b7280;">Obtenha os pontos principais em linguagem acessível</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Gerar Resumo", key="btn_resumo", use_container_width=True):
+                if not st.session_state.resumo_realizado:
+                    with st.spinner("Resumindo..."):
+                        resumo = gerar_resumo_gemini(st.session_state.texto_lei)
+                        st.session_state.chat_messages.append({
+                            "role": "user",
+                            "content": "Gere um resumo simplificado do documento",
+                            "timestamp": datetime.now()
+                        })
+                        st.session_state.chat_messages.append({
+                            "role": "assistant",
+                            "content": f"## 📄 Resumo Simplificado\n\n{resumo}",
+                            "timestamp": datetime.now()
+                        })
+                        st.session_state.resumo_realizado = True
+                        st.rerun()
+                else:
+                    st.info("Resumo já realizado!")
+            
+            st.markdown("""
+            <div class="tool-card">
+                <h4 style="margin-top:0;">🎯 Casos Práticos</h4>
+                <p style="font-size:0.9rem; color:#6b7280;">Exemplos reais de aplicação da lei</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Gerar Casos", key="btn_casos", use_container_width=True):
+                with st.spinner("Criando exemplos..."):
+                    casos = gerar_casos_praticos(st.session_state.texto_lei)
+                    st.session_state.chat_messages.append({
+                        "role": "user",
+                        "content": "Gere casos práticos de aplicação da lei",
+                        "timestamp": datetime.now()
+                    })
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": f"## 🎯 Casos Práticos\n\n{casos}",
+                        "timestamp": datetime.now()
+                    })
+                    st.session_state.casos_praticos.append(casos)
+                    st.rerun()
+            
+            st.markdown("""
+            <div class="tool-card">
+                <h4 style="margin-top:0;">⏰ Prazos Importantes</h4>
+                <p style="font-size:0.9rem; color:#6b7280;">Identifique prazos e datas-chave</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Extrair Prazos", key="btn_prazos", use_container_width=True):
+                with st.spinner("Extraindo prazos..."):
+                    prazos = extrair_prazos_importantes(st.session_state.texto_lei)
+                    st.session_state.chat_messages.append({
+                        "role": "user",
+                        "content": "Quais são os prazos importantes desta lei?",
+                        "timestamp": datetime.now()
+                    })
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": f"## ⏰ Prazos Importantes\n\n{prazos}",
+                        "timestamp": datetime.now()
+                    })
+                    st.session_state.prazos_extraidos.append(prazos)
+                    st.rerun()
+            
+            st.markdown("""
+            <div class="tool-card">
+                <h4 style="margin-top:0;">🔍 Busca Inteligente</h4>
+                <p style="font-size:0.9rem; color:#6b7280;">Encontre conceitos específicos</p>
+            </div>
+            """, unsafe_allow_html=True)
+            busca_query = st.text_input("Buscar por:", placeholder="Ex: multas, prazos, obrigações...", label_visibility="collapsed")
+            if st.button("Buscar", key="btn_busca", use_container_width=True) and busca_query:
+                with st.spinner("Buscando..."):
+                    resultado_busca = busca_semantica(st.session_state.texto_lei, busca_query)
+                    st.session_state.chat_messages.append({
+                        "role": "user",
+                        "content": f"Buscar por: {busca_query}",
+                        "timestamp": datetime.now()
+                    })
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": f"## 🔍 Resultados da Busca: '{busca_query}'\n\n{resultado_busca}",
+                        "timestamp": datetime.now()
+                    })
+                    st.rerun()
+
+# Área Principal - Chat
+if not st.session_state.texto_lei:
+    # Tela inicial sem documento
+    col1, col2 = st.columns([1, 1])
+    with col1:
         st.markdown("""
-        <div class="glass-card fade-in">
-            <h3 style="color: white; margin-bottom: 1.5rem;">🚀 Ações Rápidas</h3>
-            <div class="quick-actions">
-        """, unsafe_allow_html=True)
+        ## Bem-vindo ao LexFácil! 👋
         
-        col1, col2, col3, col4 = st.columns(
+        **Seu assistente jurídico inteligente** que transforma leis complexas em linguagem acessível.
+        
+        ### Como usar:
+        1. **Carregue um PDF** da lei ou norma na barra lateral
+        2. **Converse naturalmente** sobre o documento
+        3. **Explore as ferramentas** para análises específicas
+        
+        """)
+        
+        st.image("https://via.placeholder.com/400x250?text=LexF%C3%A1cil+Demo", caption="Assistente Jurídico Inteligente")
+    
+    with col2:
+        st.markdown("""
+        ## 📚 Recursos Disponíveis:
+        
+        - **Análise de Legibilidade**: Avalie a complexidade do texto
+        - **Resumo Simplificado**: Pontos principais em linguagem acessível
+        - **Casos Práticos**: Exemplos reais de aplicação
+        - **Prazos Importantes**: Datas e períodos críticos
+        - **Busca Inteligente**: Encontre conceitos específicos
+        
+        ### 👤 Personalização por Perfil:
+        Escolha seu perfil na barra lateral para respostas adaptadas:
+        - Cidadão
+        - Empresário
+        - Advogado
+        - Servidor Público
+        """)
+else:
+    # Container do Chat
+    chat_container = st.container()
+    
+    # Exibir mensagens do chat
+    with chat_container:
+        for message in st.session_state.chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+    
+    # Input para nova mensagem
+    if prompt := st.chat_input("Digite sua pergunta sobre a lei..."):
+        # Adicionar mensagem do usuário
+        st.session_state.chat_messages.append({
+            "role": "user",
+            "content": prompt,
+            "timestamp": datetime.now()
+        })
+        
+        # Exibir mensagem do usuário
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Gerar e exibir resposta
+        with st.chat_message("assistant"):
+            with st.spinner("Pensando..."):
+                resposta = processar_pergunta_chat(prompt)
+                st.markdown(resposta)
+                
+                # Adicionar resposta ao histórico
+                st.session_state.chat_messages.append({
+                    "role": "assistant",
+                    "content": resposta,
+                    "timestamp": datetime.now()
+                })
+
+# Sugestões de Perguntas (apenas com documento carregado)
+if st.session_state.texto_lei and len(st.session_state.chat_messages) <= 1:
+    st.markdown("### 💡 Perguntas sugeridas para seu perfil:")
+    
+    sugestoes_por_persona = {
+        "👨‍👩‍👧‍👦 Cidadão": [
+            "Como esta lei me afeta no dia a dia?",
+            "Quais são meus direitos e deveres?", 
+            "O que acontece se eu não cumprir?",
+            "Esta lei já está valendo?",
+            "Preciso fazer algo para me adequar?",
+            "Tem alguma multa prevista?"
+        ],
+        "👨‍💼 Empresário": [
+            "Quais os impactos para minha empresa?",
+            "Quanto vai custar me adequar?",
+            "Quais são os prazos de adequação?",
+            "Que documentos preciso providenciar?",
+            "Posso ser multado? Qual valor?",
+            "Como isso afeta meus funcionários?"
+        ],
+        "👩‍⚖️ Advogado": [
+            "Quais são as principais mudanças?",
+            "Como interpretar o artigo X?",
+            "Há conflitos com outras normas?",
+            "Quais as sanções previstas?",
+            "Como é a aplicação prática?",
+            "Existem regulamentações complementares?"
+        ],
+        "🏛️ Servidor Público": [
+            "Como aplicar esta norma?",
+            "Quais são os procedimentos?",
+            "Que competência tem meu órgão?",
+            "Como fiscalizar o cumprimento?",
+            "Que documentos são necessários?",
+            "Como instruir os processos?"
+        ]
+    }
+    
+    sugestoes = sugestoes_por_persona.get(st.session_state.persona_usuario, sugestoes_por_persona["👨‍👩‍👧‍👦 Cidadão"])
+    
+    cols = st.columns(3)
+    for i, sugestao in enumerate(sugestoes):
+        with cols[i % 3]:
+            st.markdown(f"""
+            <div class="suggestion-chip" onclick="this.parentElement.querySelector('button').click()">
+                {sugestao}
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(sugestao, key=f"sug_{i}", label_visibility="hidden"):
+                st.session_state.chat_messages.append({
+                    "role": "user",
+                    "content": sugestao,
+                    "timestamp": datetime.now()
+                })
+                
+                with st.spinner("Pensando..."):
+                    resposta = processar_pergunta_chat(sugestao)
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": resposta,
+                        "timestamp": datetime.now()
+                    })
+                st.rerun()
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style="text-align:center; color:#6b7280; font-size:0.9rem;">
+    <p>🤖 <strong>LexFácil</strong> - Transformando juridiquês em linguagem humana com IA</p>
+    <p style="font-size:0.8rem;">Versão 1.0 · Desenvolvido com Gemini e Streamlit</p>
+</div>
+""", unsafe_allow_html=True)
