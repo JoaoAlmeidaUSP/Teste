@@ -5,205 +5,292 @@ import PyPDF2
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
-import hashlib
-from pathlib import Path
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
 
-# Configuração da página com tema escuro e moderno
+# Configuração da página - DEVE ser a primeira linha do Streamlit
 st.set_page_config(
-    page_title="LexFácil • AI Legal Assistant", 
+    page_title="LexFácil", 
     layout="wide", 
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="⚖️"
 )
 
-# CSS customizado para layout moderno
+# CSS personalizado para interface moderna
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
-    /* Variáveis CSS */
+    /* Reset e variáveis */
     :root {
-        --primary-color: #667eea;
-        --secondary-color: #764ba2;
-        --accent-color: #f093fb;
-        --background-dark: #0f1419;
-        --surface-dark: #1a1f2e;
-        --text-primary: #ffffff;
-        --text-secondary: #94a3b8;
-        --border-color: #334155;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
-        --error-color: #ef4444;
+        --primary-color: #2E86AB;
+        --secondary-color: #A23B72;
+        --accent-color: #F18F01;
+        --success-color: #06D6A0;
+        --warning-color: #F18F01;
+        --error-color: #F71735;
+        --text-color: #2D3436;
+        --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --card-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        --glass-bg: rgba(255, 255, 255, 0.25);
+        --border-radius: 16px;
     }
     
-    /* Reset e base */
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        font-family: 'Inter', sans-serif;
+    /* Layout principal */
+    .main-container {
+        background: var(--bg-gradient);
+        min-height: 100vh;
+        padding: 0;
+        margin: 0;
     }
     
-    /* Sidebar moderna */
-    .css-1d391kg {
-        background: rgba(15, 20, 25, 0.95);
+    /* Header moderno */
+    .modern-header {
+        background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
-        border-right: 1px solid var(--border-color);
+        padding: 1.5rem 2rem;
+        border-radius: 0 0 24px 24px;
+        margin-bottom: 2rem;
+        box-shadow: var(--card-shadow);
     }
     
-    /* Main content area */
-    .main .block-container {
-        background: rgba(26, 31, 46, 0.9);
-        backdrop-filter: blur(20px);
-        border-radius: 20px;
-        border: 1px solid var(--border-color);
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        margin-top: 2rem;
-        padding: 2rem;
-    }
-    
-    /* Títulos com gradiente */
-    .gradient-title {
-        background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+    .header-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(45deg, #667eea, #764ba2);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-weight: 700;
-        font-size: 2.5rem;
         text-align: center;
-        margin-bottom: 1rem;
+        margin: 0;
+    }
+    
+    .header-subtitle {
+        text-align: center;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+        margin-top: 0.5rem;
     }
     
     /* Cards modernos */
-    .modern-card {
-        background: rgba(51, 65, 85, 0.3);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
+    .glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(16px);
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        box-shadow: var(--card-shadow);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Chat interface */
+    .chat-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--border-radius);
         padding: 1.5rem;
-        margin: 1rem 0;
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
+        margin-bottom: 2rem;
+        box-shadow: var(--card-shadow);
+        max-height: 600px;
+        overflow-y: auto;
     }
     
-    .modern-card:hover {
-        transform: translateY(-2px);
-        border-color: var(--primary-color);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+    /* Personas modernas */
+    .persona-selector {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
     }
     
-    /* Botões com estilo futurista */
-    .stButton > button {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        border: none;
+    .persona-card {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid transparent;
         border-radius: 12px;
-        color: white;
-        font-weight: 600;
-        padding: 0.75rem 1.5rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Chat messages estilizadas */
-    .chat-message {
-        background: rgba(51, 65, 85, 0.3);
-        border-radius: 16px;
         padding: 1rem;
-        margin: 0.5rem 0;
-        border-left: 4px solid var(--primary-color);
-        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        flex: 1;
+        min-width: 200px;
+        text-align: center;
     }
     
-    /* Indicadores de status */
+    .persona-card:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .persona-card.active {
+        border-color: var(--accent-color);
+        background: rgba(241, 143, 1, 0.2);
+    }
+    
+    .persona-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .persona-title {
+        font-weight: 600;
+        color: white;
+        margin-bottom: 0.25rem;
+    }
+    
+    .persona-desc {
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    /* Upload area moderna */
+    .upload-zone {
+        border: 2px dashed rgba(255, 255, 255, 0.5);
+        border-radius: var(--border-radius);
+        padding: 3rem;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+        margin-bottom: 2rem;
+    }
+    
+    .upload-zone:hover {
+        border-color: var(--accent-color);
+        background: rgba(255, 255, 255, 0.15);
+    }
+    
+    /* Botões de ação rápida */
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .action-button {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        border: none;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        text-align: center;
+    }
+    
+    .action-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(46, 134, 171, 0.4);
+    }
+    
+    /* Sugestões de perguntas */
+    .suggestions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .suggestion-chip {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 25px;
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        color: white;
+        font-weight: 500;
+    }
+    
+    .suggestion-chip:hover {
+        background: var(--accent-color);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(241, 143, 1, 0.4);
+    }
+    
+    /* Status indicator */
     .status-indicator {
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        background: var(--success-color);
+        color: white;
         padding: 0.5rem 1rem;
-        background: rgba(16, 185, 129, 0.2);
-        border: 1px solid var(--success-color);
         border-radius: 20px;
-        color: var(--success-color);
-        font-size: 0.875rem;
-        font-weight: 500;
+        font-size: 0.9rem;
+        font-weight: 600;
     }
     
-    /* Métricas dashboard */
-    .metric-card {
-        background: rgba(51, 65, 85, 0.2);
-        border-radius: 12px;
+    /* Loading spinner moderno */
+    .modern-spinner {
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top: 3px solid var(--accent-color);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Chat messages styling */
+    .chat-message {
+        margin-bottom: 1rem;
         padding: 1rem;
-        text-align: center;
-        border: 1px solid var(--border-color);
-        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        max-width: 80%;
     }
     
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--primary-color);
+    .user-message {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        margin-left: auto;
+        text-align: right;
     }
     
-    .metric-label {
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
+    .assistant-message {
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--text-color);
+        margin-right: auto;
     }
     
-    /* Upload area */
-    .upload-area {
-        border: 2px dashed var(--primary-color);
-        border-radius: 16px;
-        padding: 2rem;
-        text-align: center;
-        background: rgba(102, 126, 234, 0.1);
-        transition: all 0.3s ease;
+    /* Responsivo */
+    @media (max-width: 768px) {
+        .persona-selector {
+            flex-direction: column;
+        }
+        
+        .quick-actions {
+            grid-template-columns: 1fr;
+        }
+        
+        .suggestions-grid {
+            grid-template-columns: 1fr;
+        }
     }
     
-    .upload-area:hover {
-        background: rgba(102, 126, 234, 0.2);
-        border-color: var(--accent-color);
+    /* Animações */
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
     }
     
-    /* Animations */
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     
-    .loading-pulse {
-        animation: pulse 2s infinite;
-    }
-    
-    /* Scrollbar customizada */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: var(--surface-dark);
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: var(--primary-color);
-        border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--secondary-color);
-    }
+    /* Esconder elementos padrão do Streamlit */
+    .stDeployButton { display: none; }
+    .stDecoration { display: none; }
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# Configuração da API (mantenha sua chave)
-GOOGLE_API_KEY = "AIzaSyAi-EZdS0Jners99DuB_5DkROiK16ghPnM"
+# Configuração da API
+GOOGLE_API_KEY = "AIzaSyAi-EZdS0Jners99DuB_5DkROiK16ghPnM"  # Replace with your actual API key
 
 if not GOOGLE_API_KEY or GOOGLE_API_KEY == "YOUR_ACTUAL_API_KEY_HERE": 
     st.error("⚠️ ATENÇÃO: A CHAVE API DO GEMINI NÃO FOI DEFINIDA CORRETAMENTE NO CÓDIGO!")
@@ -227,148 +314,7 @@ except Exception as e:
     st.error(f"❌ Falha ao configurar a API do Gemini: {str(e)}")
     st.stop()
 
-# === SISTEMA DE MÉTRICAS ===
-class MetricsTracker:
-    def __init__(self):
-        self.metrics_file = Path("lexfacil_metrics.json")
-        self.session_id = self._generate_session_id()
-        
-    def _generate_session_id(self):
-        """Gera um ID único para a sessão"""
-        timestamp = str(datetime.now().timestamp())
-        return hashlib.md5(timestamp.encode()).hexdigest()[:8]
-    
-    def _load_metrics(self):
-        """Carrega métricas do arquivo"""
-        if self.metrics_file.exists():
-            try:
-                with open(self.metrics_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                return self._get_default_metrics()
-        return self._get_default_metrics()
-    
-    def _get_default_metrics(self):
-        """Retorna estrutura padrão de métricas"""
-        return {
-            "total_sessions": 0,
-            "total_documents": 0,
-            "total_questions": 0,
-            "total_analyses": 0,
-            "persona_usage": {
-                "👨‍👩‍👧‍👦 Cidadão": 0,
-                "👨‍💼 Empresário": 0,
-                "👩‍⚖️ Advogado": 0,
-                "🏛️ Servidor Público": 0
-            },
-            "feature_usage": {
-                "analysis": 0,
-                "summary": 0,
-                "practical_cases": 0,
-                "deadlines": 0,
-                "semantic_search": 0
-            },
-            "sessions": [],
-            "daily_stats": {}
-        }
-    
-    def _save_metrics(self, metrics):
-        """Salva métricas no arquivo"""
-        try:
-            with open(self.metrics_file, 'w', encoding='utf-8') as f:
-                json.dump(metrics, f, indent=2, ensure_ascii=False, default=str)
-        except Exception as e:
-            st.error(f"Erro ao salvar métricas: {e}")
-    
-    def track_session_start(self):
-        """Registra início de sessão"""
-        metrics = self._load_metrics()
-        metrics["total_sessions"] += 1
-        
-        today = datetime.now().strftime("%Y-%m-%d")
-        if today not in metrics["daily_stats"]:
-            metrics["daily_stats"][today] = {
-                "sessions": 0,
-                "documents": 0,
-                "questions": 0
-            }
-        metrics["daily_stats"][today]["sessions"] += 1
-        
-        session_data = {
-            "id": self.session_id,
-            "start_time": datetime.now().isoformat(),
-            "persona": st.session_state.get("persona_usuario", "👨‍👩‍👧‍👦 Cidadão"),
-            "questions": 0,
-            "features_used": []
-        }
-        metrics["sessions"].append(session_data)
-        
-        self._save_metrics(metrics)
-    
-    def track_document_upload(self, filename):
-        """Registra upload de documento"""
-        metrics = self._load_metrics()
-        metrics["total_documents"] += 1
-        
-        today = datetime.now().strftime("%Y-%m-%d")
-        if today in metrics["daily_stats"]:
-            metrics["daily_stats"][today]["documents"] += 1
-        
-        self._save_metrics(metrics)
-    
-    def track_question(self):
-        """Registra pergunta feita"""
-        metrics = self._load_metrics()
-        metrics["total_questions"] += 1
-        
-        today = datetime.now().strftime("%Y-%m-%d")
-        if today in metrics["daily_stats"]:
-            metrics["daily_stats"][today]["questions"] += 1
-        
-        self._save_metrics(metrics)
-    
-    def track_feature_usage(self, feature):
-        """Registra uso de funcionalidade"""
-        metrics = self._load_metrics()
-        if feature in metrics["feature_usage"]:
-            metrics["feature_usage"][feature] += 1
-        
-        self._save_metrics(metrics)
-    
-    def track_persona_change(self, persona):
-        """Registra mudança de persona"""
-        metrics = self._load_metrics()
-        if persona in metrics["persona_usage"]:
-            metrics["persona_usage"][persona] += 1
-        
-        self._save_metrics(metrics)
-    
-    def get_dashboard_data(self):
-        """Retorna dados para dashboard"""
-        metrics = self._load_metrics()
-        
-        # Dados dos últimos 7 dias
-        last_7_days = []
-        for i in range(7):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            last_7_days.append({
-                "date": date,
-                "sessions": metrics["daily_stats"].get(date, {}).get("sessions", 0),
-                "questions": metrics["daily_stats"].get(date, {}).get("questions", 0),
-                "documents": metrics["daily_stats"].get(date, {}).get("documents", 0)
-            })
-        
-        return {
-            "summary": metrics,
-            "last_7_days": list(reversed(last_7_days))
-        }
-
-# Inicializar tracker de métricas
-if 'metrics_tracker' not in st.session_state:
-    st.session_state.metrics_tracker = MetricsTracker()
-    st.session_state.metrics_tracker.track_session_start()
-
-# Inicialização do session state (mantém o original)
+# Inicialização do session state
 if 'chat_messages' not in st.session_state:
     st.session_state.chat_messages = []
 if 'texto_lei' not in st.session_state:
@@ -388,7 +334,7 @@ if 'casos_praticos' not in st.session_state:
 if 'prazos_extraidos' not in st.session_state:
     st.session_state.prazos_extraidos = []
 
-# === FUNÇÕES HELPER (mantém as originais) ===
+# --- Helper Functions ---
 def extrair_texto_pdf(caminho_pdf):
     texto = ""
     try:
@@ -461,15 +407,12 @@ def criar_contexto_inicial():
 
 def processar_pergunta_chat(pergunta):
     """Processa uma pergunta no chat considerando o contexto da lei"""
-    # Track da pergunta
-    st.session_state.metrics_tracker.track_question()
-    
     contexto_base = criar_contexto_inicial()
     
     # Histórico das últimas 3 mensagens para contexto
     historico_recente = ""
     if len(st.session_state.chat_messages) > 0:
-        ultimas_msgs = st.session_state.chat_messages[-6:]
+        ultimas_msgs = st.session_state.chat_messages[-6:]  # Últimas 3 trocas (user + assistant)
         for msg in ultimas_msgs:
             papel = "USUÁRIO" if msg["role"] == "user" else "ASSISTENTE"
             historico_recente += f"{papel}: {msg['content']}\n"
@@ -487,9 +430,6 @@ def processar_pergunta_chat(pergunta):
     """
     
     return call_gemini_api(prompt, "resposta do chat")
-
-# Outras funções de análise (analisar_legibilidade_gemini, gerar_resumo_gemini, etc.)
-# [Manter as funções originais aqui - não vou replicar todas para economizar espaço]
 
 def analisar_legibilidade_gemini(texto):
     prompt = f"""
@@ -622,77 +562,149 @@ def busca_semantica(texto, consulta):
     """
     return call_gemini_api(prompt, "Busca Semântica")
 
-# === INTERFACE MODERNIZADA ===
+# --- Interface Principal ---
 
-# Header com título gradiente
+# Header moderno
 st.markdown("""
-<div class="gradient-title">
-    ⚖️ LexFácil
-</div>
-<div style="text-align: center; color: #94a3b8; font-size: 1.2rem; margin-bottom: 2rem;">
-    Seu Assistente Jurídico Inteligente • Powered by AI
+<div class="main-container">
+    <div class="modern-header fade-in">
+        <h1 class="header-title">⚖️ LexFácil</h1>
+        <p class="header-subtitle">Seu assistente jurídico inteligente que transforma juridiquês em linguagem humana</p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar moderna
-with st.sidebar:
+# Container principal
+with st.container():
+    # Seletor de Persona moderno
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 2rem;">
-        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🤖</div>
-        <div style="font-size: 1.25rem; font-weight: 600; color: white;">LexFácil AI</div>
-        <div style="color: #94a3b8; font-size: 0.875rem;">Legal Assistant v2.0</div>
-    </div>
+    <div class="glass-card fade-in">
+        <h3 style="color: white; margin-bottom: 1rem;">👤 Como posso te ajudar hoje?</h3>
+        <div class="persona-selector">
     """, unsafe_allow_html=True)
     
-    # Dashboard de métricas (para admins ou demo)
-    with st.expander("📊 Analytics Dashboard", expanded=False):
-        dashboard_data = st.session_state.metrics_tracker.get_dashboard_data()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{dashboard_data['summary']['total_sessions']}</div>
-                <div class="metric-label">Sessões</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{dashboard_data['summary']['total_questions']}</div>
-                <div class="metric-label">Perguntas</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Gráfico de uso dos últimos 7 dias
-        if dashboard_data['last_7_days']:
-            df_stats = pd.DataFrame(dashboard_data['last_7_days'])
-            fig = px.line(df_stats, x='date', y=['sessions', 'questions'], 
-                         title="Atividade dos Últimos 7 Dias",
-                         color_discrete_map={'sessions': '#667eea', 'questions': '#764ba2'})
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=300
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Top personas
-        persona_data = dashboard_data['summary']['persona_usage']
-        if sum(persona_data.values()) > 0:
-            fig_pie = px.pie(values=list(persona_data.values()), 
-                            names=list(persona_data.keys()),
-                            title="Distribuição de Personas")
-            fig_pie.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=300
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+    personas = {
+        "👨‍👩‍👧‍👦 Cidadão": {
+            "icon": "👨‍👩‍👧‍👦",
+            "title": "Cidadão",
+            "desc": "Linguagem simples e exemplos do dia a dia"
+        },
+        "👨‍💼 Empresário": {
+            "icon": "👨‍💼", 
+            "title": "Empresário",
+            "desc": "Foco em impactos comerciais e negócios"
+        },
+        "👩‍⚖️ Advogado": {
+            "icon": "👩‍⚖️",
+            "title": "Advogado", 
+            "desc": "Análise técnica e jurídica detalhada"
+        },
+        "🏛️ Servidor Público": {
+            "icon": "🏛️",
+            "title": "Servidor Público",
+            "desc": "Aplicação prática da norma"
+        }
+    }
     
-    st.markdown("---")
+    # Criar colunas para personas
+    cols = st.columns(4)
+    for i, (key, persona) in enumerate(personas.items()):
+        with cols[i]:
+            active_class = "active" if key == st.session_state.persona_usuario else ""
+            if st.button(
+                f"{persona['icon']}\n{persona['title']}\n{persona['desc']}", 
+                key=f"persona_{i}",
+                use_container_width=True
+            ):
+                if key != st.session_state.persona_usuario:
+                    st.session_state.persona_usuario = key
+                    st.success(f"✅ Perfil alterado para {persona['title']}")
+                    time.sleep(1)
+                    st.rerun()
     
-    # Seletor de Persona com design
+    st.markdown("</div></div>", unsafe_allow_html=True)
+    
+    # Upload de arquivo com interface moderna
+    if not st.session_state.texto_lei:
+        st.markdown("""
+        <div class="glass-card fade-in">
+            <div class="upload-zone">
+                <h2 style="color: white; margin-bottom: 1rem;">📄 Carregue seu documento jurídico</h2>
+                <p style="color: rgba(255,255,255,0.8); margin-bottom: 2rem;">
+                    Arraste e solte ou clique para selecionar um arquivo PDF
+                </p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader(
+            "Escolher arquivo PDF", 
+            type=["pdf"],
+            label_visibility="collapsed"
+        )
+        
+        if uploaded_file:
+            if uploaded_file.name != st.session_state.nome_documento:
+                # Novo arquivo carregado
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_file_path = tmp_file.name
+
+                with st.spinner("🔄 Processando documento..."):
+                    texto_extraido = extrair_texto_pdf(tmp_file_path)
+                    os.unlink(tmp_file_path)
+                    
+                    if texto_extraido:
+                        st.session_state.texto_lei = texto_extraido
+                        st.session_state.nome_documento = uploaded_file.name
+                        st.session_state.chat_messages = []  # Limpa chat anterior
+                        st.session_state.analise_realizada = False
+                        st.session_state.resumo_realizado = False
+                        
+                        st.success("✅ Documento carregado com sucesso!")
+                        
+                        # Mensagem de boas-vindas automática
+                        boas_vindas = f"""Perfeito! Acabei de processar o documento **{uploaded_file.name}**. 🎉
+
+Agora posso ajudar você a entender este texto jurídico de forma simples e clara. 
+
+**O que você gostaria de fazer primeiro?**
+
+💡 **Dica**: Use os botões de ação rápida abaixo ou me faça perguntas específicas sobre a lei!"""
+                        
+                        st.session_state.chat_messages.append({
+                            "role": "assistant",
+                            "content": boas_vindas,
+                            "timestamp": datetime.now()
+                        })
+                        st.rerun()
+                    else:
+                        st.error("❌ Não foi possível extrair texto do PDF")
+    
+    # Interface principal quando documento está carregado
+    if st.session_state.texto_lei:
+        # Status do documento
+        st.markdown(f"""
+        <div class="glass-card fade-in">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: white; margin: 0;">📋 {st.session_state.nome_documento}</h3>
+                    <p style="color: rgba(255,255,255,0.8); margin: 0.5rem 0 0 0;">
+                        {len(st.session_state.texto_lei):,} caracteres • Modo: {st.session_state.persona_usuario}
+                    </p>
+                </div>
+                <div class="status-indicator">
+                    ✅ Ativo
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Ações rápidas
+        st.markdown("""
+        <div class="glass-card fade-in">
+            <h3 style="color: white; margin-bottom: 1.5rem;">🚀 Ações Rápidas</h3>
+            <div class="quick-actions">
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3, col4 = st.columns(
